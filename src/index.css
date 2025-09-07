@@ -1,4 +1,6 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 /* :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -12,6 +14,12 @@
   margin: 0;
   padding: 0;
 }
+
+.kk{
+
+  background: (135deg, #e5ddd5 0%, #dcf8c6 30%);
+
+} 
 /* html, body {
   height: 100%;
   width: 100%;

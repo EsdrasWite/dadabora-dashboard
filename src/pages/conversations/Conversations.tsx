@@ -2,114 +2,112 @@
 import React, { useState } from "react";
 import LeftSideMenu from "../../components/feature/LeftSideMenu";
 import { Link } from "react-router-dom";
+import type {
+  ConversationType,
+  messagesType,
+  usersType,
+} from "../../contants/globalTypes";
+import { getAllUsers } from "../../services/userServices";
+import { getAllMessages } from "../../services/conversationServices";
+import moment from "moment";
+import { getLocationFromNumber } from "../../utils/numberUtils";
+import Loader from "../../components/base/Loader";
 const Conversation: React.FC = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [statusFilter, setStatusFilter] = useState("all");
-  const [userFilter] = useState("all");
+  const [userFilter, setUserFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedConversation, setSelectedConversation] = useState<number>(0);
+  const [selectedConversation, setSelectedConversation] = useState<number>(1);
 
-  const conversations = [
-    {
-      id: 1,
-      status: "completed",
-      startDate: "2025-08-12",
-      startTime: "14:32",
-      endDate: "2025-08-12",
-      endTime: "12:45",
-      duration: "12m 45s",
-      messageCount: 12,
-      confidenceRate: 92,
-      user: "Marie Dubois",
-      email: "marie.dubois@email.com",
-      userAvatar: "",
-      topic: "consultation nutrition diabète",
-      lastMessage: "Merci beaucoup pour ces conseils nutritionnels détaillés.",
-      messages: [
-        {
-          id: 1,
-          sender: "user",
-          text: "Bonjour, j'aimerais des conseils pour mieux gérer mon diabète au quotidien.",
-          time: "15/01/2024 12:30",
-          tags: ["diabète", "gestion"],
-          confidence: 92,
-        },
-        {
-          id: 2,
-          sender: "bot",
-          text: "Bonjour ! Je serais ravi de vous aider avec la gestion de votre diabète. Pouvez-vous me dire quel type de diabète vous avez et depuis quand ?",
-          time: "15/01/2024 12:30",
-          confidence: 92,
-        },
-        {
-          id: 3,
-          sender: "user",
-          text: "J'ai un diabète de type 2, diagnostiqué il y a 3 ans. J'ai du mal avec l'alimentation.",
-          time: "15/01/2024 12:31",
-          tags: ["diabète type 2", "alimentation"],
-          confidence: 92,
-        },
-      ],
-    },
-    {
-      id: 2,
-      status: "active",
-      startDate: "2025-08-12",
-      startTime: "13:15",
-      endDate: null,
-      endTime: null,
-      duration: "27m 18s",
-      messageCount: 8,
-      confidenceRate: 89,
-      user: "Pierre Martin",
-      email: "pierre.martin@email.com",
-      userAvatar: "",
-      topic: "urgence douleur poitrine",
-      lastMessage: "La douleur persiste depuis ce matin...",
-      messages: [
-        {
-          id: 1,
-          sender: "user",
-          text: "La douleur persiste depuis ce matin...",
-          time: "15/01/2024 13:15",
-          tags: ["urgence", "douleur", "poitrine"],
-          confidence: 92,
-        },
-      ],
-    },
-    {
-      id: 3,
-      status: "completed",
-      startDate: "2025-08-12",
-      startTime: "12:08",
-      endDate: "2025-08-12",
-      endTime: "11:20",
-      duration: "8m 12s",
-      messageCount: 15,
-      confidenceRate: 96,
-      user: "Sophie Bernard",
-      email: "sophie.bernard@email.com",
-      userAvatar: "",
-      topic: "tension",
-      lastMessage: "Je vais suivre vos recommandations pour la tension.",
-      messages: [
-        {
-          id: 1,
-          sender: "user",
-          text: "Je vais suivre vos recommandations pour la tension.",
-          time: "15/01/2024 11:20",
-          tags: ["consultation", "diabète"],
-          confidence: 92,
-        },
-      ],
-    },
-  ];
+  const [users, setUsers] = useState<usersType[]>([]);
+  const [messages, setMessages] = useState<messagesType[]>([]);
 
-  const getConfidenceColor = (rate: number) => {
-    if (rate >= 90) return "text-green-600";
-    if (rate >= 80) return "text-yellow-600";
-    return "text-red-600";
+  const [loading, setLoading] = useState({
+    users: true,
+    messages: true,
+  });
+
+  const [error, setError] = useState({
+    users: null,
+    messages: null,
+  });
+
+  let usersCollection: (usersType & { messages?: messagesType[] })[] = [];
+  let conversations: ConversationType[] = [];
+
+  const setConversation = () => {
+    if (users.length > 0) {
+      for (const user of users) {
+        const userMessages = messages.filter((msg) => msg.user_id === user.id);
+        usersCollection.push({ ...user, messages: userMessages });
+      }
+
+      const sortedConversations = usersCollection.slice().sort((a, b) => {
+        // Get last message times (or null if no messages)
+        const timeA = a.messages?.length
+          ? new Date(a.messages[a.messages.length - 1].timestamp).getTime()
+          : null;
+
+        const timeB = b.messages?.length
+          ? new Date(b.messages[b.messages.length - 1].timestamp).getTime()
+          : null;
+
+        // If both are null or equal
+        if (!timeA && !timeB) return 0;
+        if (!timeA) return 1; // No messages in A => push A down
+        if (!timeB) return -1; // No messages in B => push B down
+
+        return timeB - timeA; // descending: most recent first
+      });
+
+      const conversationFormat = sortedConversations.map(
+        (user: usersType & { messages?: messagesType[] }) => {
+          return {
+            id: user.id,
+            status: user.status === "active" ? "Actif" : "Terminé",
+            startDate: user.messages?.length
+              ? new Date(user.messages[0].timestamp).toLocaleDateString()
+              : "",
+            startTime: user.messages?.length
+              ? new Date(user.messages[0].timestamp).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "",
+            endDate: user.messages?.length
+              ? new Date(
+                  user.messages[user.messages.length - 1].timestamp
+                ).toLocaleDateString()
+              : "",
+            endTime: user.messages?.length
+              ? new Date(
+                  user.messages[user.messages.length - 1].timestamp
+                ).toLocaleTimeString([], {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })
+              : "",
+            duration: "",
+            messageCount: user.messages?.length || 0,
+            confidenceRate: Math.floor(Math.random() * 21) + 80, // Random between 80-100
+            user: user.name,
+            phone: user.phone,
+            userAvatar: "",
+            topic: "",
+            lastMessage: user.messages?.length
+              ? user.messages[user.messages.length - 1].content
+              : "",
+            messages: [...(user.messages ?? [])],
+          };
+        }
+      );
+
+      conversations = [...conversationFormat];
+    }
   };
+
+  setConversation();
+
   const filteredConversations = conversations.filter((conv) => {
     const matchesStatus =
       statusFilter === "all" || conv.status === statusFilter;
@@ -125,10 +123,51 @@ const Conversation: React.FC = () => {
   const currentConversation = conversations.find(
     (conv) => conv.id === selectedConversation
   );
+
+  React.useEffect(() => {
+    const fetchUsers = async () => {
+      try {
+        const res = await getAllUsers();
+        setUsers(res.users);
+      } catch (err: any) {
+        setError((prev) => ({ ...prev, users: err.message }));
+      } finally {
+        setLoading((prev) => ({ ...prev, users: false }));
+      }
+    };
+
+    const fetchConversations = async () => {
+      try {
+        const res = await getAllMessages();
+        setMessages(res.messages);
+      } catch (err: any) {
+        setError((prev) => ({ ...prev, posts: err.message }));
+      } finally {
+        setLoading((prev) => ({ ...prev, posts: false }));
+      }
+    };
+
+    fetchUsers();
+    fetchConversations();
+  }, []);
+
+  if (loading.messages && loading.users) {
+    return <Loader />;
+  }
+
+  if (error.messages && error.users) {
+    return (
+      <div style={{ color: "red", textAlign: "center" }}>
+        ❌ {error.messages} {error.users}
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 font-sans">
+    <div className="min-h-screen bg-gray-50 font-sans max-h-[100vh] overflow-hidden">
       {/* Sidebar */}
       <LeftSideMenu sidebarOpen={sidebarOpen} />
+
       {/* Main Content */}
       <div
         className={`transition-all duration-300 ${
@@ -150,24 +189,18 @@ const Conversation: React.FC = () => {
                 <i className="fas fa-bars text-gray-600"></i>
               </button>
               <nav className="text-sm text-gray-500">
-                <Link to={"/"} className="hover:text-purple-600">
+                <Link to={"/"} className="hover:text-pink-600">
                   <span>Tableau de bord</span>
                 </Link>
                 <i className="fas fa-chevron-right mx-2"></i>
-                <span className="text-purple-600 font-medium">
+                <span className="text-pink-800 font-medium">
                   Gestion des Conversations
                 </span>
               </nav>
             </div>
             <div className="flex items-center space-x-4">
-              <button className="relative p-2 rounded-lg hover:bg-gray-100 cursor-pointer !rounded-button whitespace-nowrap">
-                <i className="fas fa-bell text-gray-600"></i>
-                <span className="absolute -top-1 -right-1 w-5 h-5 bg-pink-500 text-white text-xs rounded-full flex items-center justify-center">
-                  3
-                </span>
-              </button>
               <div className="flex items-center space-x-3">
-                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
+                <div className="w-8 h-8 bg-neutral-700 rounded-full flex items-center justify-center">
                   <i className="fas fa-user text-white text-sm"></i>
                 </div>
                 <div className="text-sm">
@@ -182,7 +215,7 @@ const Conversation: React.FC = () => {
         <div className="px-6 py-4 pt-24">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h1 className="text-2xl font-bold text-gray-800">
+              <h1 className="text-xl font-bold text-gray-800">
                 Gestion des Conversations
               </h1>
               <p className="text-gray-500 mt-1">
@@ -190,11 +223,16 @@ const Conversation: React.FC = () => {
               </p>
             </div>
             <div className="flex items-center space-x-3">
-              <button className="flex items-center px-4 py-2 text-gray-600 bg-white border border-solid border-gray-200 rounded-lg hover:bg-gray-50 whitespace-nowrap">
+              <button className="flex items-center px-4 py-2 text-gray-600 bg-white border border-solid border-gray-200 rounded-lg hover:bg-gray-50 !rounded-button whitespace-nowrap">
                 <i className="fas fa-download mr-2"></i>
                 Exporter
               </button>
-              <button className="flex items-center px-4 py-2 text-white bg-purple-400 rounded-lg hover:bg-purple-700 !rounded-button whitespace-nowrap">
+              <button
+                className="flex items-center px-4 py-2 text-white bg-pink-800 rounded-lg hover:bg-pink-700 !rounded-button whitespace-nowrap"
+                onClick={() => {
+                  window.location.reload();
+                }}
+              >
                 <i className="fas fa-sync-alt mr-2"></i>
                 Actualiser
               </button>
@@ -204,16 +242,16 @@ const Conversation: React.FC = () => {
         {/* Split Layout */}
         <div className="flex h-screen">
           {/* Left Side - Conversations List */}
-          <div className="w-1/3 bg-white border-r border-solid border-gray-200 flex flex-col">
+          <div className="w-1/3 bg-white pb-[100px] border-r border-gray-200 flex flex-col h-[calc(100vh-8rem)] overflow-hidden">
             {/* Search and Filters */}
-            <div className="p-4 border-b border-solid border-gray-100">
+            <div className="p-4 border-b border-solid border-gray-50">
               <div className="relative mb-4">
                 <input
                   type="text"
                   placeholder="Rechercher par utilisateur, email ou tags..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-solid border-gray-200 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm"
+                  className="w-full pl-10 pr-4 py-2 border border-solid border-gray-200 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
                 />
                 <i className="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm"></i>
               </div>
@@ -222,7 +260,7 @@ const Conversation: React.FC = () => {
                   <select
                     value={statusFilter}
                     onChange={(e) => setStatusFilter(e.target.value)}
-                    className="appearance-none bg-white border border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent cursor-pointer w-full"
+                    className="appearance-none bg-white border border-solid border-gray-200 rounded-lg px-3 py-2 pr-8 text-sm focus:ring-2 focus:ring-pink-500 focus:border-transparent cursor-pointer w-full"
                   >
                     <option value="all">Tous les statuts</option>
                     <option value="active">Actif</option>
@@ -233,21 +271,22 @@ const Conversation: React.FC = () => {
               </div>
             </div>
             {/* Conversations List */}
-            <div className="flex-1 overflow-y-auto">
+            <div className="flex-1 overflow-y-auto custom-scrollbar">
               {filteredConversations.map((conversation) => (
                 <div
                   key={conversation.id}
                   onClick={() => setSelectedConversation(conversation.id)}
                   className={`p-4 border-b border-gray-100 cursor-pointer transition-colors ${
                     selectedConversation === conversation.id
-                      ? "bg-purple-50 border-purple-200 border-l-4 border-solid border-l-purple-600"
+                      ? "bg-pink-100 border-pink-200 border-l-4 border-l-pink-600"
                       : "hover:bg-gray-50 border-l-4 border-l-transparent"
                   }`}
                 >
                   <div className="flex items-start space-x-3">
-                    <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                      <i className="fas fa-user text-white text-sm"></i>
+                    <div className="w-10 h-10 bg-neutral-500 rounded-full flex items-center justify-center">
+                      <i className="fas fa-user text-neutral-400 text-sm"></i>
                     </div>
+
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <h3 className="font-semibold text-gray-800 text-sm truncate">
@@ -265,15 +304,15 @@ const Conversation: React.FC = () => {
                               ? "Actif"
                               : "Terminé"}
                           </span>
-                          {/* {conversation.status === "active" && (
+                          {conversation.status === "active" && (
                             <span className="bg-orange-100 text-orange-800 text-xs px-2 py-0.5 rounded-full">
                               Élevé
                             </span>
-                          )} */}
+                          )}
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 mb-1">
-                        {conversation.email}
+                        {conversation.phone}
                       </p>
                       <p className="text-sm text-gray-600 truncate mb-2">
                         {conversation.lastMessage}
@@ -282,7 +321,7 @@ const Conversation: React.FC = () => {
                         <span>
                           {conversation.startDate} {conversation.startTime}
                         </span>
-                        <span>{conversation.messageCount} messages</span>
+                        <span>{conversation.messages.length} messages</span>
                       </div>
                     </div>
                   </div>
@@ -295,29 +334,35 @@ const Conversation: React.FC = () => {
             {currentConversation ? (
               <>
                 {/* Conversation Header */}
-                <div className="bg-white border-b border-solid border-gray-200 px-6 py-4">
+                <div className="bg-white border-b border-solid border-gray-100 px-6 py-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-4">
-                      {/* <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center">
-                        <i className="fas fa-user text-white text-sm"></i>
-                      </div> */}
+                      <div className="w-12 h-12 bg-neutral-500 rounded-full flex items-center justify-center">
+                        <i className="fas fa-user text-neutral-400 text-sm"></i>
+                      </div>
+                      {/* <img
+                        src={currentConversation.userAvatar}
+                        alt={currentConversation.user}
+                        className="w-12 h-12 rounded-full object-cover object-top"
+                      /> */}
                       <div>
                         <h2 className="text-lg font-semibold text-gray-800">
                           {currentConversation.user}
                         </h2>
                         <p className="text-sm text-gray-500">
-                          {currentConversation.email}
+                          {currentConversation.phone}
                         </p>
                       </div>
                     </div>
                     <div className="flex space-x-2">
-                      <Link
-                        to={`/users/${currentConversation.id}`}
-                        className="px-4 py-2 bg-white border border-solid !border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 !rounded-button whitespace-nowrap"
-                      >
-                        <i className="fas fa-user mr-2"></i>
-                        Profil
-                      </Link>
+                      <button className="px-4 py-2 bg-white border border-solid border-gray-200 rounded-lg text-gray-700 text-sm font-medium hover:bg-gray-50 !rounded-button whitespace-nowrap">
+                        <i className="fas fa-earth mr-2"></i>
+                        {/* Profil */}
+                        {
+                          getLocationFromNumber(currentConversation.phone)
+                            .location
+                        }
+                      </button>
                     </div>
                   </div>
                   <div className="mt-4 grid grid-cols-4 gap-4 text-sm">
@@ -341,67 +386,91 @@ const Conversation: React.FC = () => {
                         {currentConversation.messageCount}
                       </p>
                     </div>
-                    <div>
-                      <p className="text-gray-500">Confiance bot:</p>
-                      <p
-                        className={`font-medium ${getConfidenceColor(
-                          currentConversation.confidenceRate
-                        )}`}
-                      >
-                        {currentConversation.confidenceRate}%
-                      </p>
-                    </div>
                   </div>
                 </div>
                 {/* Messages */}
-                <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                  {currentConversation.messages?.map((message) => (
-                    <div key={message.id}>
-                      {message.sender === "user" ? (
-                        <div className="bg-purple-100 text-purple-600 p-4 rounded-lg max-w-2xl ml-auto">
-                          <p>{message.text}</p>
-                          <div className="flex items-center justify-between mt-2 text-xs">
-                            <span>{message.time}</span>
-                            {message.tags && (
+                <div
+                  className="flex-1 overflow-y-auto p-4 pb-[100px] bg-[#efeae2] bg-opacity-50"
+                  style={{ maxHeight: "calc(100vh - 280px)" }}
+                >
+                  <div className="space-y-4">
+                    {currentConversation.messages?.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`flex ${
+                          message.sender === "user"
+                            ? "justify-end"
+                            : "justify-start"
+                        }`}
+                      >
+                        <div
+                          className={`relative max-w-xl ${
+                            message.sender === "user"
+                              ? "bg-[#dcf8c6]"
+                              : "bg-white"
+                          } p-3 rounded-lg shadow-sm`}
+                        >
+                          {/* Message triangle */}
+                          <div
+                            className={`absolute top-0 ${
+                              message.sender === "user"
+                                ? "right-0 transform translate-x-1/2 -translate-y-1/2 rotate-45"
+                                : "left-0 transform -translate-x-1/2 -translate-y-1/2 rotate-45"
+                            } w-4 h-4 ${
+                              message.sender === "user"
+                                ? "bg-[#dcf8c6]"
+                                : "bg-white"
+                            }`}
+                          ></div>
+                          <p
+                            className={`text-sm ${
+                              message.sender === "user"
+                                ? "text-gray-800"
+                                : "text-gray-800"
+                            }`}
+                          >
+                            {message.content}
+                          </p>
+                          <div className="flex items-center justify-end mt-1 space-x-2">
+                            <span className="text-[10px] text-gray-500">
+                              {moment(message.timestamp).format(
+                                "DD/MM/YYYY HH:mm"
+                              )}
+                            </span>
+                            {/* {message.sender === "user" && message.tags && (
                               <div className="flex space-x-1">
                                 {message.tags.map((tag, index) => (
                                   <span
                                     key={index}
-                                    className="bg-purple-400 text-white px-2 py-0.5 rounded"
+                                    className="bg-[#25d366] bg-opacity-20 px-1.5 py-0.5 rounded text-[10px] text-green-800"
                                   >
                                     {tag}
                                   </span>
                                 ))}
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="bg-gray-100 p-4 rounded-lg max-w-2xl">
-                          <p className="text-gray-800">{message.text}</p>
-                          <div className="flex items-center justify-between mt-2 text-xs">
-                            <span className="text-gray-500">
-                              {message.time}
-                            </span>
-                            {message.confidence && (
+                            )} */}
+                            {/* {message.sender === "bot" && message.confidence && (
                               <span
-                                className={`font-medium ${getConfidenceColor(
+                                className={`text-[10px] font-medium ${getConfidenceColor(
                                   message.confidence
                                 )}`}
                               >
                                 {message.confidence}%
                               </span>
+                            )} */}
+                            {message.sender === "user" && (
+                              <i className="fas fa-check-double text-[10px] text-blue-500"></i>
                             )}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center">
-                <p className="text-gray-500">
+              <div className="flex-1 flex items-center justify-center bg-[#efeae2] bg-opacity-50">
+                <p className="text-gray-500 mt-[-100px]">
                   Sélectionnez une conversation pour voir les détails
                 </p>
               </div>
