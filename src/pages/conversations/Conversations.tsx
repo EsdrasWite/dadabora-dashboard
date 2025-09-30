@@ -394,7 +394,7 @@ const Conversation: React.FC = () => {
                   style={{ maxHeight: "calc(100vh - 280px)" }}
                 >
                   <div className="space-y-4">
-                    {currentConversation.messages?.map((message) => (
+                    {currentConversation.messages.reverse()?.map((message) => (
                       <div
                         key={message.id}
                         className={`flex ${

@@ -8,6 +8,7 @@ import Monitoring from "./pages/monitoring/Monitoring";
 import Setting from "./pages/setting/Setting";
 import SingleUser from "./pages/singleUser/SingleUser";
 import KnowledgeBase from "./pages/knowledgeBase/KnowledgeBase";
+import Login from "./pages/login/Login.tsx";
 
 const HomeLayout = () => {
   return (
@@ -32,7 +33,7 @@ function App() {
 
         {
           path: "/login",
-          element: <h1>Login</h1>,
+          element: <Login />,
         },
 
         {

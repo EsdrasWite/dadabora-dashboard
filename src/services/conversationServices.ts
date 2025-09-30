@@ -46,6 +46,8 @@ export const getMessagesByUserId = async (userId:number) => {
 export const getAllMessages = async () => {
   try {
     const response = await api.get(URL + "/messages");
+    console.log("--------")
+    console.log(response.data);
     return response.data;
   } catch (error) {
     handleApiError(error);

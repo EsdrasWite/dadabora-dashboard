@@ -414,17 +414,32 @@ const Users: React.FC = () => {
                 </div>
               </div>
             </div>
-            {/* Average Age */}
+            {/* Countries number */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
               <div className="flex items-center justify-between">
                 <div className="flex flex-col">
                   <span className="text-sm text-gray-600 mb-1">Pays</span>
-                  <span className="text-3xl font-bold text-orange-600">
+                  <span className="text-3xl font-bold text-pink-600">
                     {new Set(users.map((user) => user.location)).size}
                   </span>
                 </div>
-                <div className="w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <i className="fas fa-chart-line text-orange-600 text-xl"></i>
+                <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-chart-line text-pink-600 text-xl"></i>
+                </div>
+              </div>
+            </div>
+
+            {/* Messages count */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-100 p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex flex-col">
+                  <span className="text-sm text-gray-600 mb-1">Messages</span>
+                  <span className="text-3xl font-bold text-pink-600">
+                    {messages?.length || 0}
+                  </span>
+                </div>
+                <div className="w-12 h-12 bg-pink-100 rounded-lg flex items-center justify-center">
+                  <i className="fas fa-comment text-pink-600 text-xl"></i>
                 </div>
               </div>
             </div>
